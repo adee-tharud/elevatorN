@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
+
 export type Direction = "up" | "down" | null;
 export type Status = "idle" | "moving" | "stop";
 
@@ -8,8 +9,8 @@ interface ElevatorState {
   direction: Direction;
   queue: number[];
   moving: boolean;
-  status: Status; // ← added
-  stopTimer: number | null; // ← for 1-second stop tracking
+  status: Status;
+  stopTimer: number | null;
 }
 
 const initialState: ElevatorState = {
@@ -46,16 +47,27 @@ const elevatorSlice = createSlice({
     },
 
     step(state) {
-      // If currently stopping → countdown
+      // countdown
       if (state.status === "stop") {
         if (state.stopTimer && state.stopTimer > 0) {
-          state.stopTimer -= 1; // 1 step = 1 second
+          state.stopTimer -= 1;
           return;
         }
 
-        // Stop finished
+        // Stop finished - recalculate direction based on remaining queue
         state.status = "moving";
         state.stopTimer = null;
+        
+        if (state.queue.length === 0) {
+          state.direction = null;
+          state.moving = false;
+          state.status = "idle";
+          return;
+        }
+
+        // Recalculate direction after stop
+        const next = state.queue[0];
+        state.direction = next > state.currentFloor ? "up" : "down";
       }
 
       if (!state.direction || state.queue.length === 0) {
@@ -68,34 +80,47 @@ const elevatorSlice = createSlice({
       state.moving = true;
       state.status = "moving";
 
-      // Move 1 floor
-      if (state.direction === "up") state.currentFloor += 1;
-      else state.currentFloor -= 1;
+      // Check if we should continue in current direction
+      const hasFloorsInCurrentDirection = 
+        state.direction === "up" 
+          ? state.queue.some(f => f > state.currentFloor)
+          : state.queue.some(f => f < state.currentFloor);
+
+      // If no floors in current direction, reverse immediately
+      if (!hasFloorsInCurrentDirection) {
+        state.direction = state.direction === "up" ? "down" : "up";
+      }
+
+      // Move in the current direction
+      if (state.direction === "up") {
+        if (state.currentFloor < 5) {
+          state.currentFloor += 1;
+        }
+      } else if (state.direction === "down") {
+        if (state.currentFloor > 0) {
+          state.currentFloor -= 1;
+        }
+      }
 
       // If this is a stop floor
       if (state.queue.includes(state.currentFloor)) {
         state.queue = state.queue.filter((f) => f !== state.currentFloor);
 
-        // >>> ADD STOP FOR 1 SECONDS <<<
         state.status = "stop";
-        state.stopTimer = 1; // 1 seconds
+        state.stopTimer = 1; // 1 second
         state.moving = false;
 
-        // Direction is recalculated after stop
+      
         return;
       }
 
-      // Queue empty → idle
+      // If queue is empty after moving
       if (state.queue.length === 0) {
         state.direction = null;
         state.moving = false;
         state.status = "idle";
         return;
       }
-
-      // Re-evaluate direction
-      const next = state.queue[0];
-      state.direction = next > state.currentFloor ? "up" : "down";
     },
   },
 });
