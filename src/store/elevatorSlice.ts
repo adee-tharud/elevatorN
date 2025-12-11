@@ -1,6 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-
 export type Direction = "up" | "down" | null;
 export type Status = "idle" | "moving" | "stop";
 
